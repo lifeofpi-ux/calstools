@@ -245,7 +245,7 @@ def main():
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown("<h1 class='main-header'>📅 공문 이미지를 Google 캘린더 이벤트로 변환</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='main-header'>📅 공문 일정 캘린더 변환</h1>", unsafe_allow_html=True)
 
     if 'google_token' not in st.session_state:
         auth_code = st.experimental_get_query_params().get("code")

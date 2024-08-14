@@ -9,6 +9,19 @@ import time
 import json
 import re
 
+import logging
+logging.basicConfig(level=logging.DEBUG)
+
+try:
+    logging.debug("OCR 모델 로딩 시작")
+    reader = easyocr.Reader(['ko', 'en'], gpu=False)
+    logging.debug("OCR 모델 로딩 완료")
+    result = reader.readtext(image_path)
+except Exception as e:
+    logging.error(f"OCR 처리 중 오류 발생: {str(e)}", exc_info=True)
+    st.error("OCR 처리 중 오류가 발생했습니다. 로그를 확인해주세요.")
+
+    
 # Streamlit Secrets에서 API 키 가져오기
 def get_api_key():
     return st.secrets["OPENAI_API_KEY"]

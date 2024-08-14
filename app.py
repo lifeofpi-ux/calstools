@@ -26,7 +26,7 @@ def init_openai_client():
     api_key = get_api_key()
     return OpenAI(api_key=api_key)
 
-MODEL_NAME = "gpt-4o"
+MODEL_NAME = "gpt-4"
 
 SCOPES = ['https://www.googleapis.com/auth/calendar.events']
 CLIENT_CONFIG = {
@@ -213,8 +213,56 @@ def create_google_calendar_event(event_info):
         return None
 
 def main():
-    st.title("공문 이미지를 Google 캘린더 이벤트로 변환")
+    # 페이지 설정
+    st.set_page_config(page_title="공문 이미지 변환기", page_icon="📅", layout="wide")
 
+    # CSS 스타일 적용
+    st.markdown("""
+    <style>
+    .main-title {
+        font-size: 3rem !important;
+        color: #FF6B6B;
+        text-align: center;
+        padding: 1rem;
+        border-radius: 10px;
+        background-color: #4ECDC4;
+        margin-bottom: 2rem;
+    }
+    .sub-title {
+        font-size: 1.5rem !important;
+        color: #45B7D1;
+        margin-bottom: 1rem;
+    }
+    .stButton > button {
+        background-color: #FF6B6B;
+        color: white;
+        font-weight: bold;
+    }
+    .success-message {
+        background-color: #66CDAA;
+        color: white;
+        padding: 0.5rem;
+        border-radius: 5px;
+    }
+    .warning-message {
+        background-color: #FFD700;
+        color: #4A4A4A;
+        padding: 0.5rem;
+        border-radius: 5px;
+    }
+    .error-message {
+        background-color: #FF6B6B;
+        color: white;
+        padding: 0.5rem;
+        border-radius: 5px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # 메인 타이틀
+    st.markdown("<h1 class='main-title'>📅 공문 이미지를 Google 캘린더 이벤트로 변환</h1>", unsafe_allow_html=True)
+
+    # Google 인증 처리
     if 'google_token' not in st.session_state:
         auth_code = st.experimental_get_query_params().get("code")
         if auth_code:
@@ -223,31 +271,35 @@ def main():
                 flow.fetch_token(code=auth_code[0])
                 credentials = flow.credentials
                 st.session_state.google_token = credentials_to_dict(credentials)
-                st.success("Google 계정 인증 성공!")
+                st.markdown("<p class='success-message'>Google 계정 인증 성공!</p>", unsafe_allow_html=True)
                 time.sleep(2)
                 st.rerun()
             except Exception as e:
-                st.warning("Google 계정 연동이 필요합니다.")
+                st.markdown("<p class='warning-message'>Google 계정 연동이 필요합니다.</p>", unsafe_allow_html=True)
                 st.session_state.pop('google_token', None)
         else:
-            st.warning("Google 계정 연동이 필요합니다.")
+            st.markdown("<p class='warning-message'>Google 계정 연동이 필요합니다.</p>", unsafe_allow_html=True)
             if st.button("Google 계정 연동"):
                 flow = get_google_auth_flow()
                 authorization_url, _ = flow.authorization_url(prompt='consent', access_type='offline', include_granted_scopes='true')
                 st.markdown(f"[Google 계정 인증하기]({authorization_url})")
     else:
-        st.success("Google 계정이 연동되었습니다.")
+        st.markdown("<p class='success-message'>Google 계정이 연동되었습니다.</p>", unsafe_allow_html=True)
         if st.button("Google 계정 연동 해제"):
             st.session_state.pop('google_token', None)
             st.experimental_rerun()
 
+    # OpenAI API 키 확인
     api_key = get_api_key()
     if not api_key:
-        st.error("OpenAI API 키가 설정되지 않았습니다. Streamlit Secrets에서 'OPENAI_API_KEY'를 설정해주세요.")
+        st.markdown("<p class='error-message'>OpenAI API 키가 설정되지 않았습니다. Streamlit Secrets에서 'OPENAI_API_KEY'를 설정해주세요.</p>", unsafe_allow_html=True)
         return
 
+    # OpenAI 클라이언트 초기화
     client = init_openai_client()
 
+    # 파일 업로더
+    st.markdown("<h2 class='sub-title'>공문 이미지 업로드</h2>", unsafe_allow_html=True)
     uploaded_file = st.file_uploader("공문 이미지를 업로드하세요", type=["png", "jpg", "jpeg"])
 
     if uploaded_file is not None:
@@ -259,26 +311,26 @@ def main():
                 try:
                     extracted_text = extract_text_from_image(image)
                     if extracted_text:
-                        st.text("추출된 텍스트:")
+                        st.markdown("<h3 class='sub-title'>추출된 텍스트</h3>", unsafe_allow_html=True)
                         st.text(extracted_text)
                         analyzed_info = analyze_text_with_ai(client, extracted_text)
                         if analyzed_info:
-                            st.subheader("분석 결과")
+                            st.markdown("<h3 class='sub-title'>분석 결과</h3>", unsafe_allow_html=True)
                             st.json(analyzed_info)
 
                             created_events = create_google_calendar_event(analyzed_info)
                             if created_events:
-                                st.subheader("생성된 Google 캘린더 이벤트")
+                                st.markdown("<h3 class='sub-title'>생성된 Google 캘린더 이벤트</h3>", unsafe_allow_html=True)
                                 for i, event in enumerate(created_events, 1):
                                     st.markdown(f"{i}. [이벤트 {i} 보기]({event.get('htmlLink')})")
                             else:
-                                st.warning("Google 계정 연동이 필요합니다.")
+                                st.markdown("<p class='warning-message'>Google 계정 연동이 필요합니다.</p>", unsafe_allow_html=True)
                         else:
-                            st.error("AI 분석에 실패했습니다.")
+                            st.markdown("<p class='error-message'>AI 분석에 실패했습니다.</p>", unsafe_allow_html=True)
                     else:
-                        st.error("이미지에서 텍스트를 추출하지 못했습니다.")
+                        st.markdown("<p class='error-message'>이미지에서 텍스트를 추출하지 못했습니다.</p>", unsafe_allow_html=True)
                 except Exception as e:
-                    st.error(f"이미지 처리 중 예기치 못한 오류 발생: {str(e)}")
+                    st.markdown(f"<p class='error-message'>이미지 처리 중 예기치 못한 오류 발생: {str(e)}</p>", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()

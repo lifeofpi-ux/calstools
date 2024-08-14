@@ -3,7 +3,6 @@ easyocr
 OpenAI
 datetime
 timedelta
-urllib.parse
 numpy
 time
 json

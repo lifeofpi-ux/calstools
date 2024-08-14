@@ -213,7 +213,7 @@ def create_google_calendar_event(event_info):
         return None
 
 def main():
-    st.set_page_config(page_title="공문 이미지 변환기", page_icon="📅", layout="wide")
+    st.set_page_config(page_title="공문 이미지 변환기", page_icon="📅", layout="centered")
 
     st.markdown("""
     <style>

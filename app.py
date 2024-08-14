@@ -8,20 +8,11 @@ import numpy as np
 import time
 import json
 import re
-
+import gc
 import logging
-logging.basicConfig(level=logging.DEBUG)
 
-try:
-    logging.debug("OCR 모델 로딩 시작")
-    reader = easyocr.Reader(['ko', 'en'], gpu=False)
-    logging.debug("OCR 모델 로딩 완료")
-    result = reader.readtext(image_path)
-except Exception as e:
-    logging.error(f"OCR 처리 중 오류 발생: {str(e)}", exc_info=True)
-    st.error("OCR 처리 중 오류가 발생했습니다. 로그를 확인해주세요.")
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-    
 # Streamlit Secrets에서 API 키 가져오기
 def get_api_key():
     return st.secrets["OPENAI_API_KEY"]
@@ -32,21 +23,17 @@ def init_openai_client():
     return OpenAI(api_key=api_key)
 
 # 사용할 모델 설정
-MODEL_NAME = "gpt-4o"
+MODEL_NAME = "gpt-4"
 
 @st.cache_resource
 def load_ocr():
     try:
         with st.spinner('OCR 모델을 로딩 중입니다. 잠시만 기다려주세요...'):
-            progress_bar = st.progress(0)
-            for i in range(100):
-                progress_bar.progress(i + 1)
-                time.sleep(0.1)
-            reader = easyocr.Reader(['ko', 'en'], gpu=False)
-            progress_bar.empty()
+            reader = easyocr.Reader(['ko', 'en'], gpu=False, model_storage_directory='./model')
             return reader
     except Exception as e:
         st.error(f"OCR 모델 로딩 중 오류 발생: {str(e)}")
+        logging.error(f"OCR 모델 로딩 중 오류 발생: {str(e)}", exc_info=True)
         return None
 
 def extract_text_from_image(image):
@@ -54,11 +41,15 @@ def extract_text_from_image(image):
     if reader is None:
         return None
     try:
-        result = reader.readtext(np.array(image))
+        image_np = np.array(image)
+        result = reader.readtext(image_np)
         text = ' '.join([res[1] for res in result])
+        del image_np
+        gc.collect()
         return text
     except Exception as e:
         st.error(f"이미지에서 텍스트 추출 중 오류 발생: {str(e)}")
+        logging.error(f"이미지에서 텍스트 추출 중 오류 발생: {str(e)}", exc_info=True)
         return None
 
 def clean_json_string(json_string):
@@ -91,6 +82,7 @@ def analyze_text_with_ai(client, text):
         return clean_json_string(completion.choices[0].message.content.strip())
     except Exception as e:
         st.error(f"AI 분석 중 오류 발생: {str(e)}")
+        logging.error(f"AI 분석 중 오류 발생: {str(e)}", exc_info=True)
         return None
 
 def create_google_calendar_links(event_info):
@@ -143,6 +135,7 @@ def create_google_calendar_links(event_info):
         return calendar_links
     except Exception as e:
         st.error(f"캘린더 링크 생성 중 오류 발생: {str(e)}")
+        logging.error(f"캘린더 링크 생성 중 오류 발생: {str(e)}", exc_info=True)
         return None
 
 def main():
@@ -167,26 +160,30 @@ def main():
 
         if st.button("이미지 분석 및 링크 생성"):
             with st.spinner('이미지를 분석 중입니다...'):
-                extracted_text = extract_text_from_image(image)
-                if extracted_text:
-                    st.text("추출된 텍스트:")
-                    st.text(extracted_text)
-                    analyzed_info = analyze_text_with_ai(client, extracted_text)
-                    if analyzed_info:
-                        st.subheader("분석 결과")
-                        st.json(analyzed_info)
+                try:
+                    extracted_text = extract_text_from_image(image)
+                    if extracted_text:
+                        st.text("추출된 텍스트:")
+                        st.text(extracted_text)
+                        analyzed_info = analyze_text_with_ai(client, extracted_text)
+                        if analyzed_info:
+                            st.subheader("분석 결과")
+                            st.json(analyzed_info)
 
-                        calendar_links = create_google_calendar_links(analyzed_info)
-                        if calendar_links:
-                            st.subheader("Google 캘린더 링크")
-                            for i, link in enumerate(calendar_links, 1):
-                                st.markdown(f"{i}. [Google 캘린더에 이벤트 {i} 추가]({link})")
+                            calendar_links = create_google_calendar_links(analyzed_info)
+                            if calendar_links:
+                                st.subheader("Google 캘린더 링크")
+                                for i, link in enumerate(calendar_links, 1):
+                                    st.markdown(f"{i}. [Google 캘린더에 이벤트 {i} 추가]({link})")
+                            else:
+                                st.error("캘린더 링크 생성에 실패했습니다.")
                         else:
-                            st.error("캘린더 링크 생성에 실패했습니다.")
+                            st.error("AI 분석에 실패했습니다.")
                     else:
-                        st.error("AI 분석에 실패했습니다.")
-                else:
-                    st.error("이미지에서 텍스트를 추출하지 못했습니다.")
+                        st.error("이미지에서 텍스트를 추출하지 못했습니다.")
+                except Exception as e:
+                    st.error(f"이미지 처리 중 예기치 못한 오류 발생: {str(e)}")
+                    logging.error(f"이미지 처리 중 예기치 못한 오류 발생: {str(e)}", exc_info=True)
 
 if __name__ == "__main__":
     main()

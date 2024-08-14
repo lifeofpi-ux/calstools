@@ -248,8 +248,6 @@ def main():
         margin-bottom: 1rem;
     }
     .element-container {
-        background: #f9f9f9;
-        padding: 20px;
         border-radius: 10px;           
     }
     .element-container img { width: calc(100% - 40px); }

@@ -8,12 +8,18 @@ import json
 import re
 import gc
 import logging
+import traceback
+import time
+import os
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# 환경 변수로 배포 여부 확인
+IS_DEPLOYED = os.environ.get('IS_DEPLOYED', 'false').lower() == 'true'
 
 # Streamlit Secrets에서 API 키 가져오기
 def get_api_key():
@@ -38,16 +44,24 @@ CLIENT_CONFIG = {
         "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
         "client_secret": st.secrets["GOOGLE_CLIENT_SECRET"],
         "redirect_uris": [
+            "https://calstool.streamlit.app/",
             st.secrets.get("REDIRECT_URI", "https://calstool.streamlit.app/")
         ]
     }
 }
 
+def get_redirect_uri():
+    if IS_DEPLOYED:
+        return st.secrets.get("REDIRECT_URI")
+    else:
+        return "https://calstool.streamlit.app/"
+
 def get_google_auth_flow():
+    redirect_uri = get_redirect_uri()
     flow = Flow.from_client_config(
         CLIENT_CONFIG,
         scopes=SCOPES,
-        redirect_uri=st.secrets.get("REDIRECT_URI", "https://calstool.streamlit.app/")
+        redirect_uri=redirect_uri
     )
     return flow
 
@@ -212,23 +226,31 @@ def main():
 
     # Google 인증 처리
     if 'google_token' not in st.session_state:
-        auth_url = st.experimental_get_query_params().get("code")
-        if auth_url:
+        auth_code = st.experimental_get_query_params().get("code")
+        if auth_code:
             try:
                 flow = get_google_auth_flow()
-                flow.fetch_token(code=auth_url[0])
+                flow.fetch_token(code=auth_code[0])
                 credentials = flow.credentials
                 st.session_state.google_token = credentials_to_dict(credentials)
+                st.success("Google 계정 인증 성공!")
+                time.sleep(2)  # 사용자가 메시지를 볼 수 있도록 잠시 대기
                 st.experimental_rerun()
             except Exception as e:
                 st.error(f"인증 처리 중 오류 발생: {str(e)}")
+                logging.error(f"인증 처리 중 오류 발생: {str(e)}")
+                logging.error(traceback.format_exc())
+                st.session_state.pop('google_token', None)  # 토큰 제거
         else:
             if st.button("Google 계정 연동"):
                 flow = get_google_auth_flow()
-                authorization_url, _ = flow.authorization_url(prompt='consent')
+                authorization_url, _ = flow.authorization_url(prompt='consent', access_type='offline', include_granted_scopes='true')
                 st.markdown(f"[Google 계정 인증하기]({authorization_url})")
     else:
         st.success("Google 계정이 연동되었습니다.")
+        if st.button("Google 계정 연동 해제"):
+            st.session_state.pop('google_token', None)
+            st.experimental_rerun()
 
     # API 키 확인
     api_key = get_api_key()
@@ -274,8 +296,12 @@ def main():
                     st.error(f"이미지 처리 중 예기치 못한 오류 발생: {str(e)}")
                     logging.error(f"이미지 처리 중 예기치 못한 오류 발생: {str(e)}", exc_info=True)
 
-    # 디버깅을 위한 세션 상태 출력
+    # 디버깅 정보 출력
+    st.write("Debug Info:")
     st.write("Session State:", st.session_state)
+    st.write("Query Parameters:", st.experimental_get_query_params())
+    st.write("REDIRECT_URI:", get_redirect_uri())
+    st.write("IS_DEPLOYED:", IS_DEPLOYED)
 
 if __name__ == "__main__":
     main()

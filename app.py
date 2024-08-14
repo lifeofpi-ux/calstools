@@ -235,7 +235,7 @@ def main():
                 st.session_state.google_token = credentials_to_dict(credentials)
                 st.success("Google 계정 인증 성공!")
                 time.sleep(2)  # 사용자가 메시지를 볼 수 있도록 잠시 대기
-                st.experimental_rerun()
+                st.rerun()
             except Exception as e:
                 st.error(f"인증 처리 중 오류 발생: {str(e)}")
                 logging.error(f"인증 처리 중 오류 발생: {str(e)}")

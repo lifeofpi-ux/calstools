@@ -4,7 +4,6 @@ from PIL import Image
 from openai import OpenAI
 from datetime import datetime, timedelta
 import numpy as np
-import time
 import json
 import re
 import gc
@@ -39,7 +38,8 @@ CLIENT_CONFIG = {
         "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
         "client_secret": st.secrets["GOOGLE_CLIENT_SECRET"],
         "redirect_uris": [
-            "https://calstool.streamlit.app/"  # 실제 배포된 Streamlit 앱 URL
+            "http://localhost:8501/",
+            st.secrets.get("REDIRECT_URI", "https://your-app-name.streamlit.app/")
         ]
     }
 }
@@ -48,7 +48,7 @@ def get_google_auth_flow():
     flow = Flow.from_client_config(
         CLIENT_CONFIG,
         scopes=SCOPES,
-        redirect_uri=CLIENT_CONFIG['web']['redirect_uris'][0]  # 적절한 redirect_uri 선택
+        redirect_uri=st.secrets.get("REDIRECT_URI", "http://localhost:8501/")
     )
     return flow
 
@@ -56,6 +56,16 @@ def get_google_credentials():
     if 'google_token' not in st.session_state:
         return None
     return Credentials.from_authorized_user_info(st.session_state.google_token, SCOPES)
+
+def credentials_to_dict(credentials):
+    return {
+        'token': credentials.token,
+        'refresh_token': credentials.refresh_token,
+        'token_uri': credentials.token_uri,
+        'client_id': credentials.client_id,
+        'client_secret': credentials.client_secret,
+        'scopes': credentials.scopes
+    }
 
 @st.cache_resource
 def load_ocr():
@@ -118,9 +128,13 @@ def analyze_text_with_ai(client, text):
         return None
 
 def create_google_calendar_event(event_info):
+    if 'google_token' not in st.session_state:
+        st.error("Google 계정 인증이 필요합니다.")
+        return None
+
     creds = get_google_credentials()
     if not creds:
-        st.error("Google 계정 인증이 필요합니다.")
+        st.error("유효한 Google 인증 정보가 없습니다.")
         return None
 
     try:
@@ -187,6 +201,11 @@ def create_google_calendar_event(event_info):
         return created_events
     except HttpError as error:
         st.error(f'Google Calendar API 오류 발생: {error}')
+        logging.error(f'Google Calendar API 오류 발생: {error}', exc_info=True)
+        return None
+    except Exception as e:
+        st.error(f'예기치 못한 오류 발생: {str(e)}')
+        logging.error(f'예기치 못한 오류 발생: {str(e)}', exc_info=True)
         return None
 
 def main():
@@ -194,10 +213,21 @@ def main():
 
     # Google 인증 처리
     if 'google_token' not in st.session_state:
-        if st.button("Google 계정 연동"):
-            flow = get_google_auth_flow()
-            authorization_url, _ = flow.authorization_url(prompt='consent')
-            st.markdown(f"[Google 계정 인증하기]({authorization_url})")
+        auth_url = st.experimental_get_query_params().get("code")
+        if auth_url:
+            try:
+                flow = get_google_auth_flow()
+                flow.fetch_token(code=auth_url[0])
+                credentials = flow.credentials
+                st.session_state.google_token = credentials_to_dict(credentials)
+                st.experimental_rerun()
+            except Exception as e:
+                st.error(f"인증 처리 중 오류 발생: {str(e)}")
+        else:
+            if st.button("Google 계정 연동"):
+                flow = get_google_auth_flow()
+                authorization_url, _ = flow.authorization_url(prompt='consent')
+                st.markdown(f"[Google 계정 인증하기]({authorization_url})")
     else:
         st.success("Google 계정이 연동되었습니다.")
 
@@ -244,6 +274,9 @@ def main():
                 except Exception as e:
                     st.error(f"이미지 처리 중 예기치 못한 오류 발생: {str(e)}")
                     logging.error(f"이미지 처리 중 예기치 못한 오류 발생: {str(e)}", exc_info=True)
+
+    # 디버깅을 위한 세션 상태 출력
+    st.write("Session State:", st.session_state)
 
 if __name__ == "__main__":
     main()

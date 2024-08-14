@@ -225,11 +225,12 @@ def main():
         background: #f0f2f6;
     }
     .main-header {
-        font-size: 40px;
+        font-size: 30px;
         color: #1f1f1f;
         text-align: center;
         padding: 1rem;
         margin-bottom: 2rem;
+        font-weight: 200;
     }
     .sub-header {
         font-size: 1.5rem;
@@ -246,6 +247,14 @@ def main():
         border-radius: 5px;
         margin-bottom: 1rem;
     }
+    .element-container {
+        background: #f9f9f9;
+        padding: 20px;
+        border-radius: 10px;           
+    }
+    .element-container img { width: calc(100% - 40px); }
+
+    
     </style>
     """, unsafe_allow_html=True)
 

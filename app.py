@@ -39,7 +39,6 @@ CLIENT_CONFIG = {
         "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
         "client_secret": st.secrets["GOOGLE_CLIENT_SECRET"],
         "redirect_uris": [
-            "http://localhost:8501/",  # 로컬 테스트용
             "https://calstool.streamlit.app/"  # 실제 배포된 Streamlit 앱 URL
         ]
     }

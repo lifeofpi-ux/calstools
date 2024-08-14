@@ -235,7 +235,7 @@ def main():
                 
     h2 {
         font-family: 'Pretendard', sans-serif !important;
-        margin-top:50px;
+        margin-top:30px;
     }               
             
     .sub-header {

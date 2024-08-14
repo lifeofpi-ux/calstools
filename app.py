@@ -232,6 +232,11 @@ def main():
         margin-bottom: 2rem;
         font-weight: 200;
     }
+                
+    h2 {
+        font-family: 'Pretendard', sans-serif !important;
+    }               
+            
     .sub-header {
         font-size: 1.5rem;
         color: #4a4a4a;

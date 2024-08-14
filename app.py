@@ -26,7 +26,7 @@ def init_openai_client():
     api_key = get_api_key()
     return OpenAI(api_key=api_key)
 
-MODEL_NAME = "gpt-4"
+MODEL_NAME = "gpt-4o"
 
 SCOPES = ['https://www.googleapis.com/auth/calendar.events']
 CLIENT_CONFIG = {

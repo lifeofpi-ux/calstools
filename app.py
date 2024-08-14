@@ -47,7 +47,7 @@ def get_google_auth_flow():
     flow = Flow.from_client_config(
         CLIENT_CONFIG,
         scopes=SCOPES,
-        redirect_uri=st.secrets.get("REDIRECT_URI", "http://localhost:8501/")
+        redirect_uri=st.secrets.get("REDIRECT_URI", "https://calstool.streamlit.app/")
     )
     return flow
 

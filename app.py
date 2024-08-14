@@ -23,7 +23,7 @@ def init_openai_client():
     return OpenAI(api_key=api_key)
 
 # 사용할 모델 설정
-MODEL_NAME = "gpt-4"
+MODEL_NAME = "gpt-4o"
 
 @st.cache_resource
 def load_ocr():

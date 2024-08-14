@@ -235,6 +235,7 @@ def main():
                 
     h2 {
         font-family: 'Pretendard', sans-serif !important;
+        margin-top:50px;
     }               
             
     .sub-header {
@@ -296,7 +297,7 @@ def main():
 
     client = init_openai_client()
 
-    st.markdown("<h2 class='sub-header'>공문 이미지 업로드</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 class='sub-header'>🍀 공문 이미지 업로드</h2>", unsafe_allow_html=True)
     uploaded_file = st.file_uploader("공문 이미지를 업로드하세요", type=["png", "jpg", "jpeg"])
 
     if uploaded_file is not None:

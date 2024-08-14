@@ -133,12 +133,12 @@ def analyze_text_with_ai(client, text):
 
 def create_google_calendar_event(event_info):
     if 'google_token' not in st.session_state:
-        st.error("Google 계정 인증이 필요합니다.")
+        st.warning("Google 계정 연동이 필요합니다.")
         return None
 
     creds = get_google_credentials()
     if not creds:
-        st.error("유효한 Google 인증 정보가 없습니다.")
+        st.warning("Google 계정 연동이 필요합니다.")
         return None
 
     try:
@@ -203,7 +203,10 @@ def create_google_calendar_event(event_info):
 
         return created_events
     except HttpError as error:
-        st.error(f'Google Calendar API 오류 발생: {error}')
+        if error.resp.status in [401, 403]:
+            st.warning("Google 계정 연동이 필요합니다.")
+        else:
+            st.error(f'Google Calendar API 오류 발생: {error}')
         return None
     except Exception as e:
         st.error(f'예기치 못한 오류 발생: {str(e)}')
@@ -224,9 +227,10 @@ def main():
                 time.sleep(2)
                 st.rerun()
             except Exception as e:
-                st.error(f"인증 처리 중 오류 발생: {str(e)}")
+                st.warning("Google 계정 연동이 필요합니다.")
                 st.session_state.pop('google_token', None)
         else:
+            st.warning("Google 계정 연동이 필요합니다.")
             if st.button("Google 계정 연동"):
                 flow = get_google_auth_flow()
                 authorization_url, _ = flow.authorization_url(prompt='consent', access_type='offline', include_granted_scopes='true')
@@ -268,7 +272,7 @@ def main():
                                 for i, event in enumerate(created_events, 1):
                                     st.markdown(f"{i}. [이벤트 {i} 보기]({event.get('htmlLink')})")
                             else:
-                                st.error("Google 캘린더 이벤트 생성에 실패했습니다.")
+                                st.warning("Google 계정 연동이 필요합니다.")
                         else:
                             st.error("AI 분석에 실패했습니다.")
                     else:

@@ -3,13 +3,16 @@ import easyocr
 from PIL import Image
 from openai import OpenAI
 from datetime import datetime, timedelta
-import urllib.parse
 import numpy as np
 import time
 import json
 import re
 import gc
 import logging
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import Flow
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -23,7 +26,37 @@ def init_openai_client():
     return OpenAI(api_key=api_key)
 
 # 사용할 모델 설정
-MODEL_NAME = "gpt-4o"
+MODEL_NAME = "gpt-4"
+
+# Google Calendar API 설정
+SCOPES = ['https://www.googleapis.com/auth/calendar.events']
+CLIENT_CONFIG = {
+    "web": {
+        "client_id": st.secrets["GOOGLE_CLIENT_ID"],
+        "project_id": st.secrets["GOOGLE_PROJECT_ID"],
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_secret": st.secrets["GOOGLE_CLIENT_SECRET"],
+        "redirect_uris": [
+            "http://localhost:8501/",  # 로컬 테스트용
+            "https://calstool.streamlit.app/"  # 실제 배포된 Streamlit 앱 URL
+        ]
+    }
+}
+
+def get_google_auth_flow():
+    flow = Flow.from_client_config(
+        CLIENT_CONFIG,
+        scopes=SCOPES,
+        redirect_uri=CLIENT_CONFIG['web']['redirect_uris'][0]  # 적절한 redirect_uri 선택
+    )
+    return flow
+
+def get_google_credentials():
+    if 'google_token' not in st.session_state:
+        return None
+    return Credentials.from_authorized_user_info(st.session_state.google_token, SCOPES)
 
 @st.cache_resource
 def load_ocr():
@@ -85,61 +118,89 @@ def analyze_text_with_ai(client, text):
         logging.error(f"AI 분석 중 오류 발생: {str(e)}", exc_info=True)
         return None
 
-def create_google_calendar_links(event_info):
+def create_google_calendar_event(event_info):
+    creds = get_google_credentials()
+    if not creds:
+        st.error("Google 계정 인증이 필요합니다.")
+        return None
+
     try:
-        base_url = "https://www.google.com/calendar/render?action=TEMPLATE"
+        service = build('calendar', 'v3', credentials=creds)
         event_dict = json.loads(event_info)
         
         text = event_dict.get('주제', '')
         dates = event_dict.get('일시', [])
         location = event_dict.get('위치', '')
         details = event_dict.get('설명', '')
-        event_type = event_dict.get('이벤트_유형', '')
         reminder = event_dict.get('알림_설정', '기본 알림')
 
         if isinstance(dates, str):
-            dates = [dates]  # 단일 날짜를 리스트로 변환
+            dates = [dates]
 
-        calendar_links = []
-        
+        created_events = []
+
         for date in dates:
             try:
                 dt = datetime.strptime(date, "%Y년 %m월 %d일 %H:%M")
             except ValueError:
                 dt = datetime.now() + timedelta(days=7)
             
-            formatted_time = dt.strftime("%Y%m%dT%H%M%S")
-            end_time = (dt + timedelta(hours=1)).strftime("%Y%m%dT%H%M%S")
+            end_time = dt + timedelta(hours=1)
+
+            event = {
+                'summary': text,
+                'location': location,
+                'description': details,
+                'start': {
+                    'dateTime': dt.isoformat(),
+                    'timeZone': 'Asia/Seoul',
+                },
+                'end': {
+                    'dateTime': end_time.isoformat(),
+                    'timeZone': 'Asia/Seoul',
+                },
+            }
 
             # 알림 설정
             if reminder == "이벤트 2일 전":
-                reminder_param = "&reminder=2880"
+                event['reminders'] = {
+                    'useDefault': False,
+                    'overrides': [
+                        {'method': 'popup', 'minutes': 2 * 24 * 60},
+                    ],
+                }
             elif reminder == "당일 오전 8시 45분":
-                reminder_minutes = int((dt.replace(hour=8, minute=45) - dt).total_seconds() / 60)
-                if reminder_minutes < 0:
-                    reminder_minutes = 0
-                reminder_param = f"&reminder={reminder_minutes}"
+                minutes_until_reminder = int((dt.replace(hour=8, minute=45) - dt).total_seconds() / 60)
+                if minutes_until_reminder < 0:
+                    minutes_until_reminder = 0
+                event['reminders'] = {
+                    'useDefault': False,
+                    'overrides': [
+                        {'method': 'popup', 'minutes': minutes_until_reminder},
+                    ],
+                }
             else:
-                reminder_param = "&reminder=10"  # 기본 10분 전 알림
+                event['reminders'] = {'useDefault': True}
 
-            params = {
-                "text": text,
-                "dates": f"{formatted_time}/{end_time}",
-                "details": details,
-                "location": location,
-            }
-            
-            calendar_link = f"{base_url}&{urllib.parse.urlencode(params)}{reminder_param}"
-            calendar_links.append(calendar_link)
-        
-        return calendar_links
-    except Exception as e:
-        st.error(f"캘린더 링크 생성 중 오류 발생: {str(e)}")
-        logging.error(f"캘린더 링크 생성 중 오류 발생: {str(e)}", exc_info=True)
+            created_event = service.events().insert(calendarId='primary', body=event).execute()
+            created_events.append(created_event)
+
+        return created_events
+    except HttpError as error:
+        st.error(f'Google Calendar API 오류 발생: {error}')
         return None
 
 def main():
     st.title("공문 이미지를 Google 캘린더 이벤트로 변환")
+
+    # Google 인증 처리
+    if 'google_token' not in st.session_state:
+        if st.button("Google 계정 연동"):
+            flow = get_google_auth_flow()
+            authorization_url, _ = flow.authorization_url(prompt='consent')
+            st.markdown(f"[Google 계정 인증하기]({authorization_url})")
+    else:
+        st.success("Google 계정이 연동되었습니다.")
 
     # API 키 확인
     api_key = get_api_key()
@@ -158,7 +219,7 @@ def main():
         image = Image.open(uploaded_file)
         st.image(image, caption='업로드된 이미지', use_column_width=True)
 
-        if st.button("이미지 분석 및 링크 생성"):
+        if st.button("이미지 분석 및 이벤트 생성"):
             with st.spinner('이미지를 분석 중입니다...'):
                 try:
                     extracted_text = extract_text_from_image(image)
@@ -170,13 +231,13 @@ def main():
                             st.subheader("분석 결과")
                             st.json(analyzed_info)
 
-                            calendar_links = create_google_calendar_links(analyzed_info)
-                            if calendar_links:
-                                st.subheader("Google 캘린더 링크")
-                                for i, link in enumerate(calendar_links, 1):
-                                    st.markdown(f"{i}. [Google 캘린더에 이벤트 {i} 추가]({link})")
+                            created_events = create_google_calendar_event(analyzed_info)
+                            if created_events:
+                                st.subheader("생성된 Google 캘린더 이벤트")
+                                for i, event in enumerate(created_events, 1):
+                                    st.markdown(f"{i}. [이벤트 {i} 보기]({event.get('htmlLink')})")
                             else:
-                                st.error("캘린더 링크 생성에 실패했습니다.")
+                                st.error("Google 캘린더 이벤트 생성에 실패했습니다.")
                         else:
                             st.error("AI 분석에 실패했습니다.")
                     else:

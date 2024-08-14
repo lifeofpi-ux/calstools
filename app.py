@@ -8,7 +8,6 @@ import json
 import re
 import gc
 import logging
-import traceback
 import time
 import os
 from google.oauth2.credentials import Credentials
@@ -16,24 +15,19 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.ERROR, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# 환경 변수로 배포 여부 확인
 IS_DEPLOYED = os.environ.get('IS_DEPLOYED', 'false').lower() == 'true'
 
-# Streamlit Secrets에서 API 키 가져오기
 def get_api_key():
     return st.secrets["OPENAI_API_KEY"]
 
-# OpenAI 클라이언트 초기화
 def init_openai_client():
     api_key = get_api_key()
     return OpenAI(api_key=api_key)
 
-# 사용할 모델 설정
-MODEL_NAME = "gpt-4o"
+MODEL_NAME = "gpt-4"
 
-# Google Calendar API 설정
 SCOPES = ['https://www.googleapis.com/auth/calendar.events']
 CLIENT_CONFIG = {
     "web": {
@@ -88,7 +82,6 @@ def load_ocr():
             return reader
     except Exception as e:
         st.error(f"OCR 모델 로딩 중 오류 발생: {str(e)}")
-        logging.error(f"OCR 모델 로딩 중 오류 발생: {str(e)}", exc_info=True)
         return None
 
 def extract_text_from_image(image):
@@ -104,7 +97,6 @@ def extract_text_from_image(image):
         return text
     except Exception as e:
         st.error(f"이미지에서 텍스트 추출 중 오류 발생: {str(e)}")
-        logging.error(f"이미지에서 텍스트 추출 중 오류 발생: {str(e)}", exc_info=True)
         return None
 
 def clean_json_string(json_string):
@@ -137,7 +129,6 @@ def analyze_text_with_ai(client, text):
         return clean_json_string(completion.choices[0].message.content.strip())
     except Exception as e:
         st.error(f"AI 분석 중 오류 발생: {str(e)}")
-        logging.error(f"AI 분석 중 오류 발생: {str(e)}", exc_info=True)
         return None
 
 def create_google_calendar_event(event_info):
@@ -187,7 +178,6 @@ def create_google_calendar_event(event_info):
                 },
             }
 
-            # 알림 설정
             if reminder == "이벤트 2일 전":
                 event['reminders'] = {
                     'useDefault': False,
@@ -214,17 +204,14 @@ def create_google_calendar_event(event_info):
         return created_events
     except HttpError as error:
         st.error(f'Google Calendar API 오류 발생: {error}')
-        logging.error(f'Google Calendar API 오류 발생: {error}', exc_info=True)
         return None
     except Exception as e:
         st.error(f'예기치 못한 오류 발생: {str(e)}')
-        logging.error(f'예기치 못한 오류 발생: {str(e)}', exc_info=True)
         return None
 
 def main():
     st.title("공문 이미지를 Google 캘린더 이벤트로 변환")
 
-    # Google 인증 처리
     if 'google_token' not in st.session_state:
         auth_code = st.experimental_get_query_params().get("code")
         if auth_code:
@@ -234,13 +221,11 @@ def main():
                 credentials = flow.credentials
                 st.session_state.google_token = credentials_to_dict(credentials)
                 st.success("Google 계정 인증 성공!")
-                time.sleep(2)  # 사용자가 메시지를 볼 수 있도록 잠시 대기
+                time.sleep(2)
                 st.rerun()
             except Exception as e:
                 st.error(f"인증 처리 중 오류 발생: {str(e)}")
-                logging.error(f"인증 처리 중 오류 발생: {str(e)}")
-                logging.error(traceback.format_exc())
-                st.session_state.pop('google_token', None)  # 토큰 제거
+                st.session_state.pop('google_token', None)
         else:
             if st.button("Google 계정 연동"):
                 flow = get_google_auth_flow()
@@ -252,16 +237,12 @@ def main():
             st.session_state.pop('google_token', None)
             st.experimental_rerun()
 
-    # API 키 확인
     api_key = get_api_key()
     if not api_key:
         st.error("OpenAI API 키가 설정되지 않았습니다. Streamlit Secrets에서 'OPENAI_API_KEY'를 설정해주세요.")
         return
 
-    # OpenAI 클라이언트 초기화
     client = init_openai_client()
-
-    st.info(f"현재 사용 중인 AI 모델: {MODEL_NAME}")
 
     uploaded_file = st.file_uploader("공문 이미지를 업로드하세요", type=["png", "jpg", "jpeg"])
 
@@ -294,14 +275,6 @@ def main():
                         st.error("이미지에서 텍스트를 추출하지 못했습니다.")
                 except Exception as e:
                     st.error(f"이미지 처리 중 예기치 못한 오류 발생: {str(e)}")
-                    logging.error(f"이미지 처리 중 예기치 못한 오류 발생: {str(e)}", exc_info=True)
-
-    # 디버깅 정보 출력
-    st.write("Debug Info:")
-    st.write("Session State:", st.session_state)
-    st.write("Query Parameters:", st.experimental_get_query_params())
-    st.write("REDIRECT_URI:", get_redirect_uri())
-    st.write("IS_DEPLOYED:", IS_DEPLOYED)
 
 if __name__ == "__main__":
     main()

@@ -217,11 +217,15 @@ def main():
 
     st.markdown("""
     <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    * {
+        font-family: 'Pretendard', sans-serif;
+    }
     .reportview-container {
         background: #f0f2f6;
     }
     .main-header {
-        font-size: 2.5rem;
+        font-size: 40px;
         color: #1f1f1f;
         text-align: center;
         padding: 1rem;
@@ -303,7 +307,7 @@ def main():
                             if created_events:
                                 st.markdown("<h3 class='sub-header'>생성된 Google 캘린더 이벤트</h3>", unsafe_allow_html=True)
                                 for i, event in enumerate(created_events, 1):
-                                    st.markdown(f"{i}. [이벤트 {i} 보기]({event.get('htmlLink')})")
+                                    st.markdown(f"{i}. [이벤트 {i} 캘린더에 추가하기]({event.get('htmlLink')})")
                             else:
                                 st.info("Google 계정 연동이 필요합니다.")
                         else:

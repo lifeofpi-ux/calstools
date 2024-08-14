@@ -38,8 +38,7 @@ CLIENT_CONFIG = {
         "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
         "client_secret": st.secrets["GOOGLE_CLIENT_SECRET"],
         "redirect_uris": [
-            "http://localhost:8501/",
-            st.secrets.get("REDIRECT_URI", "https://your-app-name.streamlit.app/")
+            st.secrets.get("REDIRECT_URI", "https://calstool.streamlit.app/")
         ]
     }
 }

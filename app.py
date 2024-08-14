@@ -233,9 +233,10 @@ def main():
         font-weight: 200;
     }
                 
-    h2 {
+    h1, h2 {
         font-family: 'Pretendard', sans-serif !important;
-        margin-top:30px;
+        margin-top:20px;
+        margin-bottom:20px;
     }               
             
     .sub-header {
